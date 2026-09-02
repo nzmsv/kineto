@@ -99,7 +99,15 @@ void CuptiCallbackApi::__callback_switchboard(
           CUPTI_CALL(cuptiFinalize());
           initSuccess_ = false;
           subscriber_ = nullptr;
-          CuptiActivityApi::singleton().teardownCupti_ = 0;
+          {
+            // Change the predicate under the mutex the waiter holds. Setting
+            // the atomic outside it lets the teardown thread observe
+            // teardownCupti_ == 1, then miss this notification in the window
+            // before it blocks, and wait forever.
+            std::lock_guard<std::mutex> guard(
+                CuptiActivityApi::singleton().finalizeMutex_);
+            CuptiActivityApi::singleton().teardownCupti_ = 0;
+          }
           CuptiActivityApi::singleton().finalizeCond_.notify_all();
           return;
         }

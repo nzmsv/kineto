@@ -119,6 +119,9 @@ void CuptiActivityProfiler::enableGpuTracing() {
     return;
   }
 
+  // Must precede any CUPTI setup for this session.
+  cupti_.waitForTeardownComplete();
+
   configureCuptiTimestampSource(config().getTSCTimestampFlag());
   cupti_.enableCuptiActivities(
       derivedConfig_->profileActivityTypes(),

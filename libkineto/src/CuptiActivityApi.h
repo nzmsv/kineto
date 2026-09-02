@@ -47,6 +47,11 @@ class CuptiActivityApi {
   static void popCorrelationID(CorrelationFlowType type);
 
   virtual bool isAvailable(uint32_t& version) const;
+  // Blocks until any teardown started by teardownContext() has finished.
+  // Must be called before any per-session CUPTI setup: a teardown completing
+  // later would finalize CUPTI out from under it.
+  void waitForTeardownComplete();
+
   void enableCuptiActivities(
       const std::set<ActivityType>& selected_activities,
       bool enablePerThreadBuffers = false);
@@ -82,6 +87,9 @@ class CuptiActivityApi {
   std::atomic<uint32_t> tracingEnabled_{0};
   std::atomic<uint32_t> tearingDown_{0};
   std::atomic<bool> externalCorrelationEnabled_{false};
+
+  // Clears tearingDown_ and wakes anyone in waitForTeardownComplete().
+  void finishTeardown();
 
   int processActivitiesForBuffer(
       uint8_t* buf,
