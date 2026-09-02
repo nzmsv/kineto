@@ -405,6 +405,19 @@ void CuptiActivityApi::disableCuptiActivities(
   externalCorrelationEnabled_ = false;
 }
 
+void CuptiActivityApi::waitForTeardownComplete() {
+  std::unique_lock<std::mutex> lck(finalizeMutex_);
+  finalizeCond_.wait(lck, [this] { return tearingDown_ == 0; });
+}
+
+void CuptiActivityApi::finishTeardown() {
+  {
+    std::lock_guard<std::mutex> guard(finalizeMutex_);
+    tearingDown_ = 0;
+  }
+  finalizeCond_.notify_all();
+}
+
 void CuptiActivityApi::teardownContext() {
   if (!tracingEnabled_) {
     return;
@@ -424,7 +437,7 @@ void CuptiActivityApi::teardownContext() {
         cbapi.initCallbackApi();
         if (!cbapi.initSuccess()) {
           LOG(WARNING) << "CUPTI Callback failed to init, skipping teardown";
-          tearingDown_ = 0;
+          finishTeardown();
           return;
         }
       }
@@ -435,7 +448,7 @@ void CuptiActivityApi::teardownContext() {
       if (!status) {
         LOG(WARNING)
             << "CUPTI Callback failed to enable for domain, skipping teardown";
-        tearingDown_ = 0;
+        finishTeardown();
         return;
       }
 
@@ -445,6 +458,12 @@ void CuptiActivityApi::teardownContext() {
       LOG(INFO) << "  CUPTI subscriber before finalize:"
                 << cbapi.getCuptiSubscriber();
       teardownCupti_ = 1;
+      // Drive the finalize rather than waiting for the application's next CUDA
+      // runtime call, which may never come. cudaRuntimeGetVersion() is
+      // lightweight and does not initialize the CUDA runtime. Must stay outside
+      // finalizeMutex_: the callback may run synchronously on this thread.
+      int runtimeVersion = 0;
+      CUDA_CALL(cudaRuntimeGetVersion(&runtimeVersion));
       std::unique_lock<std::mutex> lck(finalizeMutex_);
       finalizeCond_.wait(lck, [&] { return teardownCupti_ == 0; });
       lck.unlock();
@@ -461,7 +480,7 @@ void CuptiActivityApi::teardownContext() {
       if (!cuptiLazyInit_()) {
         reenableCuptiCallbacks_(cbapi);
       }
-      tearingDown_ = 0;
+      finishTeardown();
     });
     teardownThread.detach();
   }

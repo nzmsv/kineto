@@ -110,6 +110,10 @@ void CuptiActivityProfiler::setMaxGpuBufferSize(int64_t size) {
 }
 
 void CuptiActivityProfiler::enableGpuTracing() {
+  // Must precede any CUPTI setup for this session: a teardown finishing
+  // later would finalize CUPTI and discard the timestamp source below.
+  cupti_.waitForTeardownComplete();
+
 #ifdef _WIN32
   CUPTI_CALL(cuptiActivityRegisterTimestampCallback([]() -> uint64_t {
     auto system = std::chrono::time_point_cast<std::chrono::nanoseconds>(

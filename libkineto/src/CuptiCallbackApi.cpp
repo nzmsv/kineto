@@ -99,7 +99,11 @@ void CuptiCallbackApi::__callback_switchboard(
           CUPTI_CALL(cuptiFinalize());
           initSuccess_ = false;
           subscriber_ = nullptr;
-          CuptiActivityApi::singleton().teardownCupti_ = 0;
+          {
+            std::lock_guard<std::mutex> guard(
+                CuptiActivityApi::singleton().finalizeMutex_);
+            CuptiActivityApi::singleton().teardownCupti_ = 0;
+          }
           CuptiActivityApi::singleton().finalizeCond_.notify_all();
           return;
         }

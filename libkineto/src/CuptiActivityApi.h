@@ -46,6 +46,8 @@ class CuptiActivityApi {
   static void pushCorrelationID(int id, CorrelationFlowType type);
   static void popCorrelationID(CorrelationFlowType type);
 
+  void waitForTeardownComplete();
+
   void enableCuptiActivities(const std::set<ActivityType>& selected_activities, bool enablePerThreadBuffers = false);
   void disableCuptiActivities(const std::set<ActivityType>& selected_activities);
   void clearActivities();
@@ -77,6 +79,8 @@ class CuptiActivityApi {
   std::atomic<uint32_t> tracingEnabled_{0};
   std::atomic<uint32_t> tearingDown_{0};
   bool externalCorrelationEnabled_{false};
+
+  void finishTeardown();
 
   int processActivitiesForBuffer(uint8_t* buf,
                                  size_t validSize,
