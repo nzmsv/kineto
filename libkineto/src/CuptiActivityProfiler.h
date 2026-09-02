@@ -71,6 +71,8 @@ class CuptiActivityProfiler : public GenericActivityProfiler {
   // Cache the result because an unavailable backend stays CPU-only.
   std::once_flag cuptiInitializationOnce_;
   bool cuptiAvailable_{false};
+  // Whether GPU tracing may be used for the trace being configured.
+  bool gpuTracingReady_{true};
 
   // Calls to CUPTI is encapsulated behind this interface
   CuptiActivityApi& cupti_;

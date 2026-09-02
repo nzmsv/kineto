@@ -111,21 +111,20 @@ void CuptiActivityProfiler::ensureGpuTracingReady() {
       recordGpuVersions(cuptiVersion);
     }
   });
+  // Tracks only the teardown timeout; enableGpuTracing() still handles CUPTI
+  // being unavailable.
+  gpuTracingReady_ = true;
   if (cuptiAvailable_ && !cupti_.ensureReadyForTrace()) {
-    // TODO: Limit this fallback to the current trace so a later trace can
-    // retry GPU profiling.
-    // cpuOnly_ is not reset between traces, and the controller normally owns
-    // this profiler for the process lifetime. A teardown timeout therefore
-    // disables GPU profiling for all later traces in this process.
-    cpuOnly_ = true;
+    // This trace only: cpuOnly_ is not reset between traces.
+    gpuTracingReady_ = false;
     toggleState_.store(false);
-    LOG(WARNING) << "CUPTI teardown timed out; continuing CPU-only for the "
-                    "remaining profiler lifetime";
+    LOG(WARNING) << "CUPTI teardown timed out; continuing CPU-only for this "
+                    "trace";
   }
 }
 
 void CuptiActivityProfiler::enableGpuTracing() {
-  if (cpuOnly_) {
+  if (cpuOnly_ || !gpuTracingReady_) {
     return;
   }
   if (!cuptiAvailable_) {
@@ -142,7 +141,7 @@ void CuptiActivityProfiler::enableGpuTracing() {
 }
 
 void CuptiActivityProfiler::disableGpuTracing() {
-  if (cpuOnly_ || !cuptiAvailable_) {
+  if (cpuOnly_ || !gpuTracingReady_ || !cuptiAvailable_) {
     return;
   }
   cupti_.disableCuptiActivities(derivedConfig_->profileActivityTypes());
@@ -161,7 +160,7 @@ void CuptiActivityProfiler::clearGpuActivities() {
 
 bool CuptiActivityProfiler::isGpuCollectionStopped() const {
   // stopCollection may belong to the GPU trace whose teardown timed out.
-  return !cpuOnly_ && cupti_.stopCollection;
+  return !cpuOnly_ && gpuTracingReady_ && cupti_.stopCollection;
 }
 
 void CuptiActivityProfiler::synchronizeGpuDevice() {
