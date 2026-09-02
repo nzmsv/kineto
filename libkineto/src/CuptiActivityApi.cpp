@@ -542,6 +542,13 @@ void CuptiActivityApi::teardownContext() {
     }
     teardownCond_.notify_all();
 
+    // Drive the finalize rather than waiting for the application's next CUDA
+    // runtime call, which may never come. cudaRuntimeGetVersion() is
+    // lightweight and does not initialize the CUDA runtime. Must stay outside
+    // teardownMutex_: the callback may run synchronously on this thread.
+    int runtimeVersion = 0;
+    CUDA_CALL(cudaRuntimeGetVersion(&runtimeVersion));
+
     {
       // A new trace changes Pending to Restoring immediately. A callback
       // changes it to Finalizing, then changes it to Restoring after
